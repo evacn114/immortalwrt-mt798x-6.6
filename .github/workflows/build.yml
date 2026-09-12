@@ -1,0 +1,133 @@
+name: Build NX30Pro Padavanonly6.6 DualMode
+on:
+  push:
+    branches: [ openwrt-24.10-6.6 ]
+  workflow_dispatch:
+env:
+  CONFIG_FILE: defconfig/mt7981-ax3000.config
+  BRANCH: openwrt-24.10-6.6
+  REPO: evacn114/immortalwrt-mt798x-6.6
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.REPO }}
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential libncurses-dev gawk flex bison openssl libssl-dev dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf llvm git rsync python3 python3-pip unzip wget
+
+      - name: Add passwall feeds
+        run: |
+          echo "src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git;main" >> feeds.conf.default
+          echo "src-git passwall_luci https://github.com/xiaorouji/openwrt-passwall.git;main" >> feeds.conf.default
+
+      - name: Embed geodata init script
+        run: |
+          mkdir -p files/etc/init.d
+          cat > files/etc/init.d/xray-geodata <<'EOF'
+#!/bin/sh /etc/rc.common
+START=96
+
+ASSET_DIR="/tmp/xray-assets"
+# 完整版 geoip（17MB，GFW列表+大陆白名单双模式、支持任意国家规则）
+GEOIP_URLS="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat"
+# 省内存版(137KB，双模式也可用，但只能查CN)：把上一行整体替换为下面这行
+# GEOIP_URLS="https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/geoip-only-cn-private.dat https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/geoip/release/geoip-only-cn-private.dat https://raw.githubusercontent.com/Loyalsoldier/geoip/release/geoip-only-cn-private.dat"
+GEOSITE_URLS="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat"
+
+dl() {
+    local dest="$1"; shift
+    local tmp="${dest}.tmp"
+    for u in "$@"; do
+        logger -t xray-geodata "try $u"
+        wget --no-check-certificate --timeout=15 -q -O "$tmp" "$u" && [ -s "$tmp" ] && { mv "$tmp" "$dest"; return 0; }
+    done
+    rm -f "$tmp"; return 1
+}
+
+start() {
+    mkdir -p "$ASSET_DIR"
+    local i=0
+    while ! ping -c1 -W2 223.5.5.5 >/dev/null 2>&1; do
+        i=$((i+1))
+        [ $i -ge 60 ] && { logger -t xray-geodata "WAN timeout, skip"; return 1; }
+        sleep 2
+    done
+    dl "$ASSET_DIR/geoip.dat"  $GEOIP_URLS  || logger -t xray-geodata "geoip failed"
+    dl "$ASSET_DIR/geosite.dat" $GEOSITE_URLS || logger -t xray-geodata "geosite failed"
+    uci set passwall.@global[0].v2ray_location_asset="$ASSET_DIR"
+    uci commit passwall
+    /etc/init.d/passwall restart
+}
+
+stop() { rm -rf "$ASSET_DIR"; }
+EOF
+          chmod +x files/etc/init.d/xray-geodata
+
+      - name: Embed mode switch scripts
+        run: |
+          mkdir -p files/root
+          cat > files/root/mode-gfw.sh <<'EOF'
+#!/bin/sh
+uci set passwall.@global[0].tcp_proxy_mode='gfwlist'
+uci set passwall.@global[0].udp_proxy_mode='gfwlist'
+uci commit passwall
+/etc/init.d/passwall restart
+echo "switched to GFW-list mode"
+EOF
+          cat > files/root/mode-cn.sh <<'EOF'
+#!/bin/sh
+uci set passwall.@global[0].tcp_proxy_mode='chnroute'
+uci set passwall.@global[0].udp_proxy_mode='chnroute'
+uci commit passwall
+/etc/init.d/passwall restart
+echo "switched to CN-whitelist mode"
+EOF
+          chmod +x files/root/mode-gfw.sh files/root/mode-cn.sh
+
+      - name: Feeds update & install
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Generate .config
+        run: |
+          cp ${{ env.CONFIG_FILE }} .config
+          cat >> .config <<EOF
+CONFIG_PACKAGE_luci=y
+CONFIG_PACKAGE_luci-theme-argon=y
+CONFIG_PACKAGE_luci-app-passwall=y
+CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
+CONFIG_PACKAGE_xray-core=y
+# CONFIG_PACKAGE_v2ray-geoip is not set
+# CONFIG_PACKAGE_v2ray-geosite is not set
+CONFIG_PACKAGE_zerotier=y
+CONFIG_PACKAGE_luci-app-zerotier=y
+CONFIG_PACKAGE_luci-i18n-zerotier-zh-cn=y
+CONFIG_PACKAGE_odhcp6c=y
+CONFIG_PACKAGE_odhcpd-ipv6only=y
+CONFIG_PACKAGE_luci-proto-ipv6=y
+CONFIG_PACKAGE_luci-app-firewall=y
+CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
+CONFIG_PACKAGE_luci-app-ddns=y
+CONFIG_PACKAGE_luci-i18n-ddns-zh-cn=y
+CONFIG_PACKAGE_socat=y
+CONFIG_PACKAGE_wget-ssl=y
+EOF
+          make defconfig
+
+      - name: Compile
+        run: make -j$(nproc)
+
+      - name: Upload NX30Pro firmware only
+        uses: actions/upload-artifact@v4
+        with:
+          name: NX30Pro-DualMode
+          path: bin/targets/mediatek/filogic/*h3c_nx30pro*.bin
