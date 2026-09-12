@@ -32,64 +32,64 @@ jobs:
         run: |
           mkdir -p files/etc/init.d
           cat > files/etc/init.d/xray-geodata <<'EOF'
-#!/bin/sh /etc/rc.common
-START=96
+          #!/bin/sh /etc/rc.common
+          START=96
 
-ASSET_DIR="/tmp/xray-assets"
-# 完整版 geoip（17MB，GFW列表+大陆白名单双模式、支持任意国家规则）
-GEOIP_URLS="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat"
-# 省内存版(137KB，双模式也可用，但只能查CN)：把上一行整体替换为下面这行
-# GEOIP_URLS="https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/geoip-only-cn-private.dat https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/geoip/release/geoip-only-cn-private.dat https://raw.githubusercontent.com/Loyalsoldier/geoip/release/geoip-only-cn-private.dat"
-GEOSITE_URLS="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat"
+          ASSET_DIR="/tmp/xray-assets"
+          # 完整版 geoip（17MB，GFW列表+大陆白名单双模式、支持任意国家规则）
+          GEOIP_URLS="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat"
+          # 省内存版(137KB，双模式也可用，但只能查CN)：把上一行整体替换为下面这行
+          # GEOIP_URLS="https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/geoip-only-cn-private.dat https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/geoip/release/geoip-only-cn-private.dat https://raw.githubusercontent.com/Loyalsoldier/geoip/release/geoip-only-cn-private.dat"
+          GEOSITE_URLS="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat"
 
-dl() {
-    local dest="$1"; shift
-    local tmp="${dest}.tmp"
-    for u in "$@"; do
-        logger -t xray-geodata "try $u"
-        wget --no-check-certificate --timeout=15 -q -O "$tmp" "$u" && [ -s "$tmp" ] && { mv "$tmp" "$dest"; return 0; }
-    done
-    rm -f "$tmp"; return 1
-}
+          dl() {
+              local dest="$1"; shift
+              local tmp="${dest}.tmp"
+              for u in "$@"; do
+                  logger -t xray-geodata "try $u"
+                  wget --no-check-certificate --timeout=15 -q -O "$tmp" "$u" && [ -s "$tmp" ] && { mv "$tmp" "$dest"; return 0; }
+              done
+              rm -f "$tmp"; return 1
+          }
 
-start() {
-    mkdir -p "$ASSET_DIR"
-    local i=0
-    while ! ping -c1 -W2 223.5.5.5 >/dev/null 2>&1; do
-        i=$((i+1))
-        [ $i -ge 60 ] && { logger -t xray-geodata "WAN timeout, skip"; return 1; }
-        sleep 2
-    done
-    dl "$ASSET_DIR/geoip.dat"  $GEOIP_URLS  || logger -t xray-geodata "geoip failed"
-    dl "$ASSET_DIR/geosite.dat" $GEOSITE_URLS || logger -t xray-geodata "geosite failed"
-    uci set passwall.@global[0].v2ray_location_asset="$ASSET_DIR"
-    uci commit passwall
-    /etc/init.d/passwall restart
-}
+          start() {
+              mkdir -p "$ASSET_DIR"
+              local i=0
+              while ! ping -c1 -W2 223.5.5.5 >/dev/null 2>&1; do
+                  i=$((i+1))
+                  [ $i -ge 60 ] && { logger -t xray-geodata "WAN timeout, skip"; return 1; }
+                  sleep 2
+              done
+              dl "$ASSET_DIR/geoip.dat"  $GEOIP_URLS  || logger -t xray-geodata "geoip failed"
+              dl "$ASSET_DIR/geosite.dat" $GEOSITE_URLS || logger -t xray-geodata "geosite failed"
+              uci set passwall.@global[0].v2ray_location_asset="$ASSET_DIR"
+              uci commit passwall
+              /etc/init.d/passwall restart
+          }
 
-stop() { rm -rf "$ASSET_DIR"; }
-EOF
+          stop() { rm -rf "$ASSET_DIR"; }
+          EOF
           chmod +x files/etc/init.d/xray-geodata
 
       - name: Embed mode switch scripts
         run: |
           mkdir -p files/root
           cat > files/root/mode-gfw.sh <<'EOF'
-#!/bin/sh
-uci set passwall.@global[0].tcp_proxy_mode='gfwlist'
-uci set passwall.@global[0].udp_proxy_mode='gfwlist'
-uci commit passwall
-/etc/init.d/passwall restart
-echo "switched to GFW-list mode"
-EOF
+          #!/bin/sh
+          uci set passwall.@global[0].tcp_proxy_mode='gfwlist'
+          uci set passwall.@global[0].udp_proxy_mode='gfwlist'
+          uci commit passwall
+          /etc/init.d/passwall restart
+          echo "switched to GFW-list mode"
+          EOF
           cat > files/root/mode-cn.sh <<'EOF'
-#!/bin/sh
-uci set passwall.@global[0].tcp_proxy_mode='chnroute'
-uci set passwall.@global[0].udp_proxy_mode='chnroute'
-uci commit passwall
-/etc/init.d/passwall restart
-echo "switched to CN-whitelist mode"
-EOF
+          #!/bin/sh
+          uci set passwall.@global[0].tcp_proxy_mode='chnroute'
+          uci set passwall.@global[0].udp_proxy_mode='chnroute'
+          uci commit passwall
+          /etc/init.d/passwall restart
+          echo "switched to CN-whitelist mode"
+          EOF
           chmod +x files/root/mode-gfw.sh files/root/mode-cn.sh
 
       - name: Feeds update & install
@@ -101,26 +101,26 @@ EOF
         run: |
           cp ${{ env.CONFIG_FILE }} .config
           cat >> .config <<EOF
-CONFIG_PACKAGE_luci=y
-CONFIG_PACKAGE_luci-theme-argon=y
-CONFIG_PACKAGE_luci-app-passwall=y
-CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
-CONFIG_PACKAGE_xray-core=y
-# CONFIG_PACKAGE_v2ray-geoip is not set
-# CONFIG_PACKAGE_v2ray-geosite is not set
-CONFIG_PACKAGE_zerotier=y
-CONFIG_PACKAGE_luci-app-zerotier=y
-CONFIG_PACKAGE_luci-i18n-zerotier-zh-cn=y
-CONFIG_PACKAGE_odhcp6c=y
-CONFIG_PACKAGE_odhcpd-ipv6only=y
-CONFIG_PACKAGE_luci-proto-ipv6=y
-CONFIG_PACKAGE_luci-app-firewall=y
-CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
-CONFIG_PACKAGE_luci-app-ddns=y
-CONFIG_PACKAGE_luci-i18n-ddns-zh-cn=y
-CONFIG_PACKAGE_socat=y
-CONFIG_PACKAGE_wget-ssl=y
-EOF
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-theme-argon=y
+          CONFIG_PACKAGE_luci-app-passwall=y
+          CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
+          CONFIG_PACKAGE_xray-core=y
+          # CONFIG_PACKAGE_v2ray-geoip is not set
+          # CONFIG_PACKAGE_v2ray-geosite is not set
+          CONFIG_PACKAGE_zerotier=y
+          CONFIG_PACKAGE_luci-app-zerotier=y
+          CONFIG_PACKAGE_luci-i18n-zerotier-zh-cn=y
+          CONFIG_PACKAGE_odhcp6c=y
+          CONFIG_PACKAGE_odhcpd-ipv6only=y
+          CONFIG_PACKAGE_luci-proto-ipv6=y
+          CONFIG_PACKAGE_luci-app-firewall=y
+          CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
+          CONFIG_PACKAGE_luci-app-ddns=y
+          CONFIG_PACKAGE_luci-i18n-ddns-zh-cn=y
+          CONFIG_PACKAGE_socat=y
+          CONFIG_PACKAGE_wget-ssl=y
+          EOF
           make defconfig
 
       - name: Compile
