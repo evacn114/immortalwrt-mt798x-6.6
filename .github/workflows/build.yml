@@ -23,10 +23,29 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential libncurses-dev gawk flex bison openssl libssl-dev dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf llvm git rsync python3 python3-pip unzip wget
 
-      - name: Add passwall feeds
+      - name: Add passwall feeds (prepend, highest priority)
         run: |
-          echo "src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git;main" >> feeds.conf.default
-          echo "src-git passwall_luci https://github.com/xiaorouji/openwrt-passwall.git;main" >> feeds.conf.default
+          sed -i '1i src-git passwall_luci https://github.com/xiaorouji/openwrt-passwall.git;main' feeds.conf.default
+          sed -i '1i src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git;main' feeds.conf.default
+          echo '===== feeds.conf.default ====='
+          cat feeds.conf.default
+
+      - name: Feeds update (retry x3)
+        run: |
+          ok=0
+          for i in 1 2 3; do
+            if ./scripts/feeds update -a; then ok=1; break; fi
+            echo "feeds update failed, retry $i"; sleep 10
+          done
+          [ "$ok" = 1 ] || { echo '===== feeds update FINAL FAILED ====='; exit 1; }
+
+      - name: Remove duplicate packages then install feeds
+        run: |
+          # ImmortalWrt packages 源里的同名包会与 passwall 源冲突，删除后由 passwall 源提供
+          for p in xray-core v2ray-geodata sing-box chinadns-ng dns2socks hysteria ipt2socks microsocks naiveproxy shadowsocks-libev shadowsocks-rust v2ray-plugin xray-plugin brook trojan-plus dns2tcp ssocks tcping; do
+            rm -rf "feeds/packages/net/$p"
+          done
+          ./scripts/feeds install -a
 
       - name: Embed geodata init script
         run: |
@@ -91,11 +110,6 @@ jobs:
           echo "switched to CN-whitelist mode"
           EOF
           chmod +x files/root/mode-gfw.sh files/root/mode-cn.sh
-
-      - name: Feeds update & install
-        run: |
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
 
       - name: Generate .config
         run: |
