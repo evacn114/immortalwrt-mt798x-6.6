@@ -51,6 +51,30 @@ jobs:
           git clone --depth=1 -b 26.x https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
           ./scripts/feeds install -a
 
+      - name: Backport fortify-headers Wformat fix
+        run: |
+          # 24.10 的 fortify-headers 1.1 在编译器 -Werror=format-nonliteral 下会挂，回移上游修复(补丁以base64内嵌避免空白行被YAML折叠)
+          mkdir -p toolchain/fortify-headers/patches
+          cat > /tmp/fh.b64 <<'B64'
+          LS0tIGEvaW5jbHVkZS9zdGRpby5oCisrKyBiL2luY2x1ZGUvc3RkaW8uaApAQCAtOTgsNyArOTgs
+          MTAgQEAKIAogCWlmIChfX24gPiBfX2IpCiAJCV9fYnVpbHRpbl90cmFwKCk7CisjcHJhZ21hIEdD
+          QyBkaWFnbm9zdGljIHB1c2gKKyNwcmFnbWEgR0NDIGRpYWdub3N0aWMgaWdub3JlZCAiLVdmb3Jt
+          YXQtbm9ubGl0ZXJhbCIKIAlyZXR1cm4gX19vcmlnX3NucHJpbnRmKF9fcywgX19uLCBfX2YsIF9f
+          YnVpbHRpbl92YV9hcmdfcGFjaygpKTsKKyNwcmFnbWEgR0NDIGRpYWdub3N0aWMgcG9wCiB9CiAK
+          IF9GT1JUSUZZX0ZOKHNwcmludGYpIGludCBzcHJpbnRmKGNoYXIgKl9fcywgY29uc3QgY2hhciAq
+          X19mLCAuLi4pCkBAIC0xMDYsNiArMTA5LDggQEAKIAlzaXplX3QgX19iID0gX19idWlsdGluX29i
+          amVjdF9zaXplKF9fcywgMCk7CiAJaW50IF9fcjsKIAorI3ByYWdtYSBHQ0MgZGlhZ25vc3RpYyBw
+          dXNoCisjcHJhZ21hIEdDQyBkaWFnbm9zdGljIGlnbm9yZWQgIi1XZm9ybWF0LW5vbmxpdGVyYWwi
+          CiAJaWYgKF9fYiAhPSAoc2l6ZV90KS0xKSB7CiAJCV9fciA9IF9fb3JpZ19zbnByaW50ZihfX3Ms
+          IF9fYiwgX19mLCBfX2J1aWx0aW5fdmFfYXJnX3BhY2soKSk7CiAJCWlmIChfX3IgIT0gLTEgJiYg
+          KHNpemVfdClfX3IgPj0gX19iKQpAQCAtMTE0LDYgKzExOSw3IEBACiAJCV9fciA9IF9fb3JpZ19z
+          cHJpbnRmKF9fcywgX19mLCBfX2J1aWx0aW5fdmFfYXJnX3BhY2soKSk7CiAJfQogCXJldHVybiBf
+          X3I7CisjcHJhZ21hIEdDQyBkaWFnbm9zdGljIHBvcAogfQogCiAjaWZkZWYgX19jcGx1c3BsdXMK
+          B64
+          base64 -d /tmp/fh.b64 > toolchain/fortify-headers/patches/003-stdio.h-ignore-Wformat-nonliteral.patch
+          echo '--- fortify patch written ---'; cat toolchain/fortify-headers/patches/003-stdio.h-ignore-Wformat-nonliteral.patch
+
+
       - name: Embed geodata init script
         run: |
           mkdir -p files/etc/init.d
@@ -150,7 +174,9 @@ jobs:
 
       - name: Compile
         run: |
-          # 并行编译；若失败自动串行 V=s 重编，让真实报错暴露在日志中
+          # 先单独串行详细编译 xray-core（Go组件，并行模式下真实报错会被交错日志吞掉）
+          make package/feeds/passwall_packages/xray-core/compile -j1 V=s
+          # 其余全量并行；若失败自动串行 V=s 重编，让真实报错暴露在日志中
           make -j$(nproc) || { echo '===== parallel failed, serial verbose rebuild ====='; make -j1 V=s; }
 
       - name: Upload NX30Pro firmware only
