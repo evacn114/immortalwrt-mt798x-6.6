@@ -174,7 +174,9 @@ jobs:
 
       - name: Compile
         run: |
-          # 先单独串行详细编译 xray-core（Go组件，并行模式下真实报错会被交错日志吞掉）
+          # 全新构建需先安装工具链(musl libc 等)，否则单包编译会报 libc.installed 缺失
+          make toolchain/install -j$(nproc)
+          # 再单独串行详细编译 xray-core（Go组件，并行模式下真实报错会被交错日志吞掉）
           make package/feeds/passwall_packages/xray-core/compile -j1 V=s
           # 其余全量并行；若失败自动串行 V=s 重编，让真实报错暴露在日志中
           make -j$(nproc) || { echo '===== parallel failed, serial verbose rebuild ====='; make -j1 V=s; }
