@@ -169,6 +169,29 @@ jobs:
           CONFIG_PACKAGE_luci-i18n-ddns-zh-cn=y
           CONFIG_PACKAGE_socat=y
           CONFIG_PACKAGE_wget-ssl=y
+          # 只构建 NX30 Pro：defconfig 里的旧符号 h3c_nx30pro 已失效(设备已改名 h3c_magic-nx30-pro)，先关掉全部其他机型
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_huasifei_wh3000-emmc is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_abt_asr3000 is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cetron_ct3003 is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_a10 is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m-emmc is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_xr30-stock is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_h3c_nx30pro is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_imou_lc-hx3001 is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_jcg_q30 is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_konka_komi-a31 is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_livinet_zr-3020 is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_mt7981-360-t7-108M is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_mt7981-clt-r30b1 is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_mt7981-clt-r30b1-112M is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-stock is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-wr30u-112m is not set
+          # CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-wr30u-stock is not set
+          # 开启 NX30 Pro 两个变体：-nmbm 输出 factory.bin(原厂NMBM可直接刷)；主变体输出 sysupgrade.itb(需OpenWrt U-Boot)
+          CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_h3c_magic-nx30-pro=y
+          CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_h3c_magic-nx30-pro-nmbm=y
           EOF
           make defconfig
 
@@ -185,4 +208,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NX30Pro-DualMode
-          path: bin/targets/mediatek/filogic/*h3c_nx30pro*.bin
+          path: bin/targets/mediatek/filogic/*h3c_magic-nx30-pro*.bin
