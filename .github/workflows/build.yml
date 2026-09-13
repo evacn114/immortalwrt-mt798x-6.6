@@ -46,9 +46,9 @@ jobs:
           for p in xray-core v2ray-geodata sing-box chinadns-ng dns2socks hysteria ipt2socks microsocks naiveproxy shadowsocks-libev shadowsocks-rust v2ray-plugin xray-plugin brook trojan-plus dns2tcp ssocks tcping; do
             rm -rf "feeds/packages/net/$p"
           done
-          # 24.10 自带 golang 版本偏旧，新版 xray-core(26.x) 需要 Go 1.26，替换为社区维护的新版 golang
+          # 24.10 自带 golang 版本偏旧，新版 xray-core(26.x) 需要 Go 1.27，替换为社区维护的新版 golang
           rm -rf feeds/packages/lang/golang
-          git clone --depth=1 -b 26.x https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
+          git clone --depth=1 -b 27.x https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
           ./scripts/feeds install -a
 
       - name: Backport fortify-headers Wformat fix
